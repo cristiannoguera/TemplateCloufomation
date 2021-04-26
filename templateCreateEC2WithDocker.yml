@@ -1,0 +1,142 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Creates EC2 instance from an AMI Ubuntu, install  Docker.'
+Metadata: 
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "Network Configuration"
+        Parameters:
+          - SubnetID
+      -
+        Label:
+          default: "EC2 Configuration"
+        Parameters:
+          - KeyName
+          - InstanceType
+          - InstanceName
+          - VolumeSize
+          - SecurityGroupID
+          - AMIId
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: "A friendly environment name that will be used for namespacing all resources (valid options are dev, staging, qa or production)"
+    AllowedValues: [ dev, staging, qa, prod ]
+  SubnetID:
+    Description: "ID of the Subnet (e.g., subnet-123a351e)"
+    Type: AWS::EC2::Subnet::Id
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  AMIId:
+    Description: AMI ID
+    Type: String
+    Default: ami-00ddb0e5626798373
+  InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t2.large
+      - t3.small
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+      - t3.2xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+  InstanceName:
+    Description: Name of the instance
+    Type: String
+    Default: EC2InstanceWithDocker
+  VolumeSize: 
+    Description: Size of the EBS volume attached to the instance.
+    Type: Number
+    Default: '50'
+    MinValue: '10'
+    MaxValue: '1024'
+  SecurityGroupID:
+    Description: The Security Group ID
+    Type: String
+Mappings:
+  RegionMap:
+    us-east-1:
+      AMI: "ami-00ddb0e5626798373"
+    us-west-1:
+      AMI: "ami-0a741b782c2c8632d"
+    us-west-2:
+      AMI: "ami-0ac73f33a1888c64a"
+
+Resources:
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType:
+        Ref: InstanceType
+      KeyName:
+        Ref: KeyName
+      ImageId: !Ref AMIId
+      IamInstanceProfile: !Ref Ec2InstanceProfile
+      SubnetId: !Ref SubnetID
+      SecurityGroupIds: 
+        - !Ref SecurityGroupID
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo su
+          apt-get update
+          apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+          add-apt-repository \
+              "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+              $(lsb_release -cs) \
+              stable"
+          apt-get update
+          apt-get install -y docker-ce docker-ce-cli containerd.io
+      Tags:
+        - Key: "Name"
+          Value: !Join
+            - ''
+            - - !Ref 'AWS::StackName'
+              - '-'
+              - !Ref InstanceName
+        - Key: "Env"
+          Value: !Ref EnvironmentName
+
+  Ec2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles: [ !Ref Ec2InstanceRole ]
+  Ec2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ ec2.amazonaws.com ]
+            Action:
+              - sts:AssumeRole
+      Path: /
+Outputs:
+  InstanceId:
+    Description: InstanceId of the newly created EC2 instance
+    Value:
+      Ref: EC2Instance
+  AZ:
+    Description: Availability Zone of the newly created EC2 instance
+    Value:
+      Fn::GetAtt:
+      - EC2Instance
+      - AvailabilityZone

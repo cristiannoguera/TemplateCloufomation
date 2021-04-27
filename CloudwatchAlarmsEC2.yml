@@ -1,0 +1,266 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: This template create the alarms y SNS for notifications to Slack channel.
+Metadata: 
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "Project Configuration"
+        Parameters:
+          - environmentName
+      -
+        Label:
+          default: "EC2 Configuration"
+        Parameters:
+          - EC2ID01
+          - EC2ID02
+    ParameterLabels:
+      environmentName:
+        Default: "Environment"
+      EC2ID01:
+        Default: "EC2 EC2_Name ID"
+      EC2ID02:
+        Default: "EC2 EC2_Name_02 ID"
+
+# Parameters Instance ID
+Parameters: 
+  environmentName:
+    Description: "A friendly environment name that will be used for namespacing all resources (valid options are dev, qa or production)"
+    Type: String
+    Default: dev
+    AllowedValues: [ dev, qa, prod ]
+  EC2ID01:
+    Description: "EC2 EC2_Name ID"
+    Type: AWS::EC2::Instance::Id
+  EC2ID02:
+    Description: "EC2 EC2_Name_02 ID"
+    Type: AWS::EC2::Instance::Id
+
+ Parameters Instance type
+  EC2InstanceType01:
+    Description: "Instance type for EC2 EC2_Name"
+    Type: String
+    Default: c5.2xlarge
+  EC2InstanceType02:
+    Description: "Instance type for EC2 EC2_Name_02"
+    Type: String
+    Default: c5.xlarge
+
+ Parameters Instance AMI ID
+  EC2AmiId01:
+    Description: "AMI ID of EC2 EC2_Name"
+    Type: String
+    Default: ami-0c4e4ce5e48e9
+  EC2AmiId02:
+    Description: "AMI ID of EC2 EC2_Name_02"
+    Type: String
+    Default: ami-029c0fbe456d
+
+#  SNS FOR Monitoreo
+
+  SNSTopicAlarm:
+    Type: String
+    Description: "SNS Topic ARN for Slack Clouxter Notifications"
+    Default: arn:aws:sns:us-east-1:1111111111:Notifications-Alarm
+  SNSTopicOk:
+    Type: String
+    Description: "SNS Topic ARN for Slack Clouxter Notifications"
+    Default: arn:aws:sns:us-east-1:111111111:Notifications-Ok
+
+Resources:
+# Alarmas instancia EC2 EC2_Name
+# CPU AlARMS
+  EC201CPUWarning01:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Critical CPU usage 80%"
+      AlarmActions:
+      - !Ref SNSTopicAlarm
+      AlarmName: "EC2-CPU-80%-Warning"
+      MetricName: "CPUUtilization"
+      Namespace: AWS/EC2
+      OKActions: 
+      - !Ref SNSTopicOk
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '1'
+      Threshold: '80'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref 'EC2ID01'
+
+# MEMORY ALARMS
+  EC201MemoryWarning01:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Critical Memory Usage 90%"
+      AlarmActions:
+      - !Ref SNSTopicAlarm
+      AlarmName: "EC2-Memory-90%-Critical"
+      MetricName: "mem_used_percent"
+      Namespace: CWAgent
+      OKActions: 
+      - !Ref SNSTopicOk
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '1'
+      Threshold: '90'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref EC2ID01
+      - Name: ImageId
+        Value: !Ref EC2AmiId01
+      - Name: InstanceType
+        Value: !Ref EC2InstanceType01
+
+# DISK ALARMS
+  EC201DiskWarning01:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "High Disk Usage 80%"
+      AlarmActions:
+      - !Ref SNSTopicAlarm
+      AlarmName: "EC2-Disk-80%-Critical"
+      MetricName: "disk_used_percent"
+      Namespace: CWAgent
+      OKActions: 
+      - !Ref SNSTopicOk
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '1'
+      Threshold: '80'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref EC2ID01
+      - Name: ImageId
+        Value: !Ref EC2AmiId01
+      - Name: InstanceType
+        Value: !Ref EC2InstanceType01
+      - Name: device
+        Value: nvme0n1p2
+      - Name: fstype
+        Value: xfs
+      - Name: path
+        Value: /
+
+# STATUS CHECK ALARMS
+  EC201StatusCritical01:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Critical Status Check Failed"
+      AlarmActions:
+      - !Ref SNSTopicAlarm
+      AlarmName: "EC2-StatusCheckFailed-Critical"
+      MetricName: "StatusCheckFailed"
+      Namespace: AWS/EC2
+      OKActions: 
+      - !Ref SNSTopicOk
+      Statistic: Average
+      Period: '300'
+      EvaluationPeriods: '1'
+      Threshold: '1'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref 'EC2ID01'
+
+# Alarmas instancia EC2 EC2_Name_02
+# CPU AlARMS
+  EC202CPUWarning02:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Critical CPU usage 80%"
+      AlarmActions:
+      - !Ref SNSTopicAlarm
+      AlarmName: "EC2-CPU-80%-Warning"
+      MetricName: "CPUUtilization"
+      Namespace: AWS/EC2
+      OKActions: 
+      - !Ref SNSTopicOk
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '1'
+      Threshold: '80'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref 'EC2ID02'
+
+# MEMORY ALARMS
+  EC202MemoryWarning02:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Critical Memory Usage 90%"
+      AlarmActions:
+      - !Ref SNSTopicAlarm
+      AlarmName: "EC2-Memory-90%-Critical"
+      MetricName: "mem_used_percent"
+      Namespace: CWAgent
+      OKActions: 
+      - !Ref SNSTopicOk
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '1'
+      Threshold: '90'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref EC2ID02
+      - Name: ImageId
+        Value: !Ref EC2AmiId02
+      - Name: InstanceType
+        Value: !Ref EC2InstanceType02
+
+# DISK ALARMS
+  EC202DiskWarning02:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "High Disk Usage 80%"
+      AlarmActions:
+      - !Ref SNSTopicAlarm
+      AlarmName: "EC2-Disk-80%-Critical"
+      MetricName: "disk_used_percent"
+      Namespace: CWAgent
+      OKActions: 
+      - !Ref SNSTopicOk
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '1'
+      Threshold: '80'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref EC2ID02
+      - Name: ImageId
+        Value: !Ref EC2AmiId02
+      - Name: InstanceType
+        Value: !Ref EC2InstanceType02
+      - Name: device
+        Value: nvme0n1p2
+      - Name: fstype
+        Value: xfs
+      - Name: path
+        Value: /
+
+  EC202StatusCritical02:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Critical Status Check Failed"
+      AlarmActions:
+      - !Ref SNSTopicAlarm
+      AlarmName: "EC2-StatusCheckFailed-Critical"
+      MetricName: "StatusCheckFailed"
+      Namespace: AWS/EC2
+      OKActions: 
+      - !Ref SNSTopicOk
+      Statistic: Average
+      Period: '300'
+      EvaluationPeriods: '1'
+      Threshold: '1'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref 'EC2ID02'

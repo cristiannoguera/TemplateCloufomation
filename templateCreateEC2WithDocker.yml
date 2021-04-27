@@ -86,6 +86,13 @@ Resources:
       SubnetId: !Ref SubnetID
       SecurityGroupIds: 
         - !Ref SecurityGroupID
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeType: gp2
+            VolumeSize: !Ref VolumeSize
+            DeleteOnTermination: 'false'
+            Encrypted: 'true'
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash

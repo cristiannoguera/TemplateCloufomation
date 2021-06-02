@@ -1,0 +1,175 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: RDS Aurora-MySQL Template.
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: "A friendly environment name that will be used for namespacing all resources (valid options are dev, staging, qa or production)"
+    AllowedValues: [ dev, staging, qa, prod ]
+  DBName:
+    Description: Name of the Db
+    Type: String
+    Default: empresa-aurora
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Select a VPC that allows instances access to the Internet.
+  Subnets:
+    ConstraintDescription: must be list of existing subnet Ids
+    Description: >-
+      Atleast two existing Subnets in separate Availability Zones your Virtual
+      Private Cloud (VPC)
+    Type: 'List<AWS::EC2::Subnet::Id>'
+  SecurityGroupID:
+    Description: The Security Group ID
+    Type: String
+  DBAutoMinorVersionUpgrade:
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'true'
+    Description: Select true/false to setup Auto Minor Version upgrade
+    Type: String
+  DBBackupRetentionPeriod:
+    Default: '1'
+    Description: The number of days for which automatic DB snapshots are retained.
+    Type: String
+  DBInstanceClass:
+    AllowedValues:
+      - db.t1.micro
+      - db.t2.medium
+      - db.t3.medium
+      - db.t3.large
+      - db.m1.small
+      - db.m3.medium
+      - db.m3.large
+      - db.m3.xlarge
+      - db.m3.2xlarge
+      - db.m4.2xlarge
+      - db.r3.large
+      - db.r3.xlarge
+      - db.r3.2xlarge
+      - db.r3.4xlarge
+      - db.r3.8xlarge
+      - db.r4.large
+      - db.t2.micro
+      - db.t2.small
+      - db.t2.medium
+      - db.m2.xlarge
+      - db.m2.2xlarge
+      - db.m2.4xlarge
+      - db.cr1.8xlarge
+      - db.m1.medium
+      - db.m1.large
+      - db.m1.xlarge
+    ConstraintDescription: Must select a valid database instance type.
+    Default: db.t3.medium
+    Description: The name of the compute and memory capacity class of the DB instance.
+    Type: String
+  SecretDescription:
+    Description: "Secret Description"
+    Type: String
+    Default: "This is the secret for my Aurora DB"
+  DBMultiAZ:
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
+    Description: >-
+      Specifies if the database instance is a multiple Availability Zone
+      deployment.
+    Type: String
+Conditions:
+  CreateReadReplica: !Equals 
+    - !Ref DBMultiAZ
+    - 'false'
+Resources:
+  AuroraInstanceSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Ref SecretDescription
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "adminuser"}'
+        GenerateStringKey: 'password'
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+  
+  SecretAuroraAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref AuroraInstanceSecret
+      TargetId: !Ref AuroraDBCluster
+      TargetType: AWS::RDS::DBCluster
+
+  DBClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      Description: CloudFormation made Aurora Cluster Parameter Group
+      Family: aurora-postgresql11
+      Parameters:
+        timezone: UTC
+  RDSDBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: CloudFormation made Aurora Parameter Group
+      Family:  aurora-postgresql11
+  AuroraDBSubnetGroup:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: Subnets available for the RDS Aurora DB Instance
+      SubnetIds: !Ref Subnets
+  AuroraDBCluster:
+    Type: 'AWS::RDS::DBCluster'
+    DependsOn: 'DBClusterParameterGroup'
+    Properties:
+      Port: 5432
+      BackupRetentionPeriod: !Ref DBBackupRetentionPeriod
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+      Engine: aurora-postgresql
+      EngineVersion: '11.6'
+      StorageEncrypted: true
+      MasterUsername: !Join ['', ['{{resolve:secretsmanager:', !Ref AuroraInstanceSecret, ':SecretString:username}}' ]]
+      MasterUserPassword: !Join ['', ['{{resolve:secretsmanager:', !Ref AuroraInstanceSecret, ':SecretString:password}}' ]]
+      DBClusterParameterGroupName: !Ref DBClusterParameterGroup
+      VpcSecurityGroupIds:
+        - !Ref SecurityGroupID
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${DBName}-RDS
+  AuroraDBPrimaryInstance:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      Engine: aurora-postgresql
+      EngineVersion: '11.6'
+      DBClusterIdentifier: !Ref AuroraDBCluster
+      DBInstanceClass: !Ref DBInstanceClass
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+      AutoMinorVersionUpgrade: !Ref DBAutoMinorVersionUpgrade
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${DBName}-RDS-PrimaryDB
+Outputs:
+  AuroraEndPoints:
+    Description: Aurora Cluster Endpoint to connect
+    Value: !Join 
+      - ''
+      - - !GetAtt 
+          - AuroraDBCluster
+          - Endpoint.Address
+        - ':'
+        - !GetAtt 
+          - AuroraDBCluster
+          - Endpoint.Port
+  AuroraEndPointAddress:
+    Description: Aurora Endpoint to connect
+    Value: !Join 
+      - ''
+      - - !GetAtt 
+          - AuroraDBCluster
+          - Endpoint.Address
+  AuroraEndPointPort:
+    Description: Aurora Endpoint to connect
+    Value: !Join 
+      - ''
+      - - !GetAtt 
+          - AuroraDBCluster
+          - Endpoint.Port
